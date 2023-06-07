@@ -19,7 +19,7 @@ loader.load_data()
 import logging
 import pandas as pd
 import tensorflow_datasets as tfds
-from kaggle.api.kaggle_api_extended import KaggleApi
+#from kaggle.api.kaggle_api_extended import KaggleApi
 from huggingface_hub import Repository
 import re
 
@@ -100,7 +100,7 @@ class TextDatasetLoader:
         """
         try:
             # Load the TFDS dataset
-            dataset = tfds.load(self.tfds_dataset, split=tfds.Split.TRAIN)
+            dataset = tfds.load(self.tfds_dataset, split=tfds.Split.TEST)
 
             # Convert the dataset to a pandas DataFrame
             self.data = tfds.as_dataframe(dataset)
@@ -125,31 +125,31 @@ class TextDatasetLoader:
         except Exception as e:
             self.logger.error("Error loading data from Hugging Face dataset: %s", str(e))
 
-    def load_kaggle_data(self):
-        """
-        Load text data from a Kaggle dataset.
-        """
-        try:
-            # Authenticate with the Kaggle API
-            api = KaggleApi()
-            api.authenticate()
+    # def load_kaggle_data(self):
+    #     """
+    #     Load text data from a Kaggle dataset.
+    #     """
+    #     try:
+    #         # Authenticate with the Kaggle API
+    #         api = KaggleApi()
+    #         api.authenticate()
 
-            # Download the Kaggle dataset
-            api.dataset_download_files(self.kaggle_dataset, path='./', unzip=True)
+    #         # Download the Kaggle dataset
+    #         api.dataset_download_files(self.kaggle_dataset, path='./', unzip=True)
 
-            # Load the text data from the downloaded CSV file
-            self.data = pd.read_csv(f"{self.kaggle_dataset.split('/')[1]}.csv", header=None)
+    #         # Load the text data from the downloaded CSV file
+    #         self.data = pd.read_csv(f"{self.kaggle_dataset.split('/')[1]}.csv", header=None)
 
-            # Check if the index column is present
-            if self.has_index:
-                if 'index' in self.data.columns:
-                    self.data = self.data.drop('index', axis=1)
-                else:
-                    self.logger.warning("Index column not found in data.")
+    #         # Check if the index column is present
+    #         if self.has_index:
+    #             if 'index' in self.data.columns:
+    #                 self.data = self.data.drop('index', axis=1)
+    #             else:
+    #                 self.logger.warning("Index column not found in data.")
 
-            self.logger.info("Data loaded successfully.")
-        except Exception as e:
-            self.logger.error("Error loading data from Kaggle: %s", str(e))
+    #         self.logger.info("Data loaded successfully.")
+    #     except Exception as e:
+    #         self.logger.error("Error loading data from Kaggle: %s", str(e))
 
 
 
@@ -181,9 +181,20 @@ class TextDatasetLoader:
         # Add more data cleaning steps as per your requirements
         
         self.logger.info("Data cleaning complete.")
+
+    def convert_bytes_to_string(self):
+        for column in self.data.columns:
+            print(column)
+            if self.data[column].dtype == 'object':
+                try:
+                    self.data[column] = self.data[column].str.decode('utf-8')
+                except AttributeError:
+                    # If decoding fails, the column may not be stored as bytes
+                    continue
+        self.logger.info("Converted object based columns to string")
     
     def preprocess_data(self):
-        self.load_data()
+        self.convert_bytes_to_string()
         self.perform_initial_checks()
         self.clean_data()
         # Add any additional preprocessing steps
