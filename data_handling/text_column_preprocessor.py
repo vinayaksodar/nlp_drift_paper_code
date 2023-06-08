@@ -1,6 +1,7 @@
 import re
 import string
-
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer, WordNetLemmatizer
 
 class TextPreprocessor:
     """
@@ -15,6 +16,9 @@ class TextPreprocessor:
             column (pandas.Series): The pandas column containing text data to be preprocessed.
         """
         self.column = column
+        self.stopwords = set(stopwords.words("english"))
+        self.stemmer = PorterStemmer()
+        self.lemmatizer = WordNetLemmatizer()
 
     def preprocess_text(self):
         """
@@ -42,8 +46,12 @@ class TextPreprocessor:
         preprocessed_text = text.lower()  # Convert text to lowercase
         preprocessed_text = self.remove_special_characters(preprocessed_text)  # Remove special characters
         preprocessed_text = self.remove_extra_whitespace(preprocessed_text)  # Remove extra whitespaces
+        preprocessed_text = self.remove_stopwords(preprocessed_text)  # Remove stopwords
+        preprocessed_text = self.stem_text(preprocessed_text)  # Stem text
+        preprocessed_text = self.lemmatize_text(preprocessed_text)  # Lemmatize text
 
         return preprocessed_text
+
 
     def remove_special_characters(self, text):
         """
@@ -71,7 +79,52 @@ class TextPreprocessor:
         """
         text = re.sub("\s+", " ", text)
         return text
+    
+    def remove_stopwords(self, text):
+        """
+        Remove stopwords from the text.
 
+        Args:
+            text (str): The input text.
+
+        Returns:
+            str: The text with stopwords removed.
+        """
+        words = text.split()
+        filtered_words = [word for word in words if word not in self.stopwords]
+        text = " ".join(filtered_words)
+        return text
+    
+    def stem_text(self, text):
+        """
+        Perform stemming on the text.
+
+        Args:
+            text (str): The input text.
+
+        Returns:
+            str: The stemmed text.
+        """
+        words = text.split()
+        stemmed_words = [self.stemmer.stem(word) for word in words]
+        stemmed_text = " ".join(stemmed_words)
+        return stemmed_text
+
+    def lemmatize_text(self, text):
+        """
+        Perform lemmatization on the text.
+
+        Args:
+            text (str): The input text.
+
+        Returns:
+            str: The lemmatized text.
+        """
+        words = text.split()
+        lemmatized_words = [self.lemmatizer.lemmatize(word) for word in words]
+        lemmatized_text = " ".join(lemmatized_words)
+        return lemmatized_text
+    
 """
 # Example usage of TextPreprocessor
 # Assuming `text_column` is the pandas column containing text data

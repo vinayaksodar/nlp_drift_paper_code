@@ -5,6 +5,7 @@ from transformers import BertModel, BertTokenizer
 import numpy as np
 import pickle
 
+from data_handling.text_column_preprocessor import TextPreprocessor
 
 class SentenceEmbedder:
     """
@@ -29,7 +30,7 @@ class SentenceEmbedder:
             texts (pandas.Series): Pandas Series containing input texts.
         """
         tagged_data = [TaggedDocument(words=text.split(), tags=[str(i)]) for i, text in enumerate(texts)]
-        self.doc2vec_model = Doc2Vec(tagged_data, vector_size=100, min_count=2, epochs=40)
+        self.doc2vec_model = Doc2Vec(tagged_data, vector_size=100, min_count=2, epochs=10)
 
     def train_bert_model(self, texts):
         """
@@ -69,7 +70,9 @@ class SentenceEmbedder:
         Returns:
             tfidf_vectors (sparse matrix): TF-IDF vectors.
         """
-        tfidf_vectors = self.tfidf_vectorizer.fit_transform(texts)
+        preprocessor=TextPreprocessor(texts)
+        preprocessed_texts=preprocessor.preprocess_text()
+        tfidf_vectors = self.tfidf_vectorizer.fit_transform(preprocessed_texts)
         return tfidf_vectors
 
     def generate_doc2vec_vectors(self, texts):

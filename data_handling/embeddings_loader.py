@@ -15,8 +15,9 @@ class EmbeddingLoader:
         with open(self.file_path, 'rb') as f:
             embeddings = pickle.load(f)
 
-        embeddings_array = np.array(embeddings)
-        return embeddings_array
+        # embeddings_array = np.array(embeddings)
+        # return embeddings_array
+        return embeddings
 
 """
 #Example usage
