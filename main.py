@@ -6,6 +6,7 @@ import numpy as np
 from data_handling import text_column_preprocessor
 from data_handling import drift_inducer
 from sentence_embedder import SentenceEmbedder
+from shift_detector import DriftDetector
 from dimentionality_reducer import DimensionalityReducer
 # from dimensionality_reduction.tfidf import TFIDFVectorizer
 # from drift_detection.ks_test import KSTest
@@ -17,6 +18,7 @@ def main():
     # data_loader = DataLoader(config.DATA_FILE)
     # data = data_loader.load_data()
     data=pd.read_csv('/Users/ankitsekseria/Desktop/AIML Projects/nlp_drift_paper_code/datasets/ag_news_subset_test.csv')
+    print('shape of data',data.shape)
     # preprocessed_data = data_loader.preprocess_data()
 
     #preprocessing 
@@ -47,12 +49,15 @@ def main():
     baseline_emb = emb_obj.generate_tfidf_vectors(df_orig[input_col])
     #getting LSA
     dim_obj = DimensionalityReducer()
-    dim_lsa = dim_obj.fit_lsa(baseline_emb,100)
+    dim_lsa = dim_obj.fit_lsa(baseline_emb,baseline_emb.shape[1]-1)
     baseline_lsa = dim_obj.reduce_dimension(baseline_emb)
 
+    # defining drift detector with baseline embeddings
+    drift_obj = DriftDetector()
+    drift_obj.set_reference_embedding(baseline_lsa)
 
 
-    results={'mean':[],'stddev':[],'perc_smpl':[]}
+    results={'mean':[],'stddev':[],'perc_smpl':[],'test':[]}
     for i in perc_sampl_list:
         df_d = inducer.adding_drift(n_samples,i)
         drift_val=[]
@@ -61,15 +66,20 @@ def main():
             emb_df_d = emb_obj.generate_tfidf_vectors(df[input_col])
             lsa_df_d = dim_obj.reduce_dimension(emb_df_d)
 
-            # drift_detector = KSTest()
+            drift_q = drift_obj.ks_test(lsa_df_d)
             # drift_q = drift_detector.detect_drift(baseline_lsa,lsa_df_d)
-            drift_q=1
+            # drift_q=1
 
             drift_val.append(drift_q)
     
-    results['mean'].append(np.mean(drift_val))
-    results['stddev'].append(np.std(drift_val))
-    results['perc_smpl'].append(i)
+        results['mean'].append(np.mean(drift_val))
+        results['stddev'].append(np.std(drift_val))
+        results['perc_smpl'].append(i)
+        results['test'].append('KS_Test')
+    
+    print('results of ks test',results)
+
+
 
 
 

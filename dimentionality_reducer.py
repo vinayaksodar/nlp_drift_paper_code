@@ -52,8 +52,14 @@ class DimensionalityReducer:
         """
         scaler = StandardScaler()
         lsa = TruncatedSVD(n_components=n_components)
-        pipeline = Pipeline([('scaler', scaler), ('lsa', lsa)])
-        self.lsa_model = pipeline.fit(embeddings)
+        # pipeline = Pipeline([('scaler', scaler), ('lsa', lsa)])
+        self.lsa_model = lsa.fit(embeddings)
+        exp_var = np.cumsum(np.array(self.lsa_model.explained_variance_ratio_))
+        first_idx = np.where(exp_var>0.8)[0][0]
+        n_components = first_idx+1
+        lsa = TruncatedSVD(n_components=n_components)
+        self.lsa_model = lsa.fit(embeddings)
+        print(n_components)
 
     def fit_autoencoder(self, embeddings, hidden_dim):
         """
