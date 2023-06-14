@@ -42,7 +42,9 @@ class SentenceEmbedder:
         Args:
             texts (pandas.Series): Pandas Series containing input texts.
         """
-        tagged_data = [TaggedDocument(words=text.split(), tags=[str(i)]) for i, text in enumerate(texts)]
+        preprocessor = TextPreprocessor(texts)
+        preprocessed_texts = preprocessor.preprocess_text()
+        tagged_data = [TaggedDocument(words=text.split(), tags=[str(i)]) for i, text in enumerate(preprocessed_texts)]
         self.doc2vec_model = Doc2Vec(tagged_data, vector_size=100, min_count=2, epochs=10)
 
     def train_bert_model(self, texts):
