@@ -80,7 +80,7 @@ class DriftDetector:
             raise ValueError("No reference embedding set. Please set a reference embedding first.")
 
         # Configure and initialize the MMD drift detector
-        detector = MMDDrift(x_ref=self.reference_embedding,backend='pytorch')
+        detector = MMDDrift(x_ref=self.reference_embedding,backend='pytorch',n_permutations=30)
 
         # Perform the MMD test
         p_value, mmd, p_value_threshold = detector.score(embeddings)
