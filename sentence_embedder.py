@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
-from transformers import BertModel, BertTokenizer
+from transformers import BertModel, BertTokenizer, BertForSequenceClassification
 import numpy as np
 import pickle
 from scipy.sparse import csr_matrix
@@ -88,7 +88,7 @@ class SentenceEmbedder:
         Returns:
             doc2vec_vectors (list): Doc2Vec vectors.
         """
-        doc2vec_vectors = [self.doc2vec_model.infer_vector(text.split()) for text in texts]
+        doc2vec_vectors = np.array([self.doc2vec_model.infer_vector(text.split()) for text in texts])
         return doc2vec_vectors
 
     def generate_bert_vectors(self, texts):
@@ -147,9 +147,14 @@ class SentenceEmbedder:
         Args:
             filename (str): Name of the file containing the model.
         """
-        with open(filename, 'rb') as file:
-            model = pickle.load(file)
-            self.bert_model=model
+        # with open(filename, 'rb') as file:
+        #     model = pickle.load(file)
+        #     self.bert_model=model
+        model = BertForSequenceClassification.from_pretrained(filename)
+        model.eval()
+        tokenizer=BertTokenizer.from_pretrained(filename)
+        self.bert_model = model
+        self.bert_tokenizer = tokenizer
 
 
     def save_embeddings(self, embeddings, filename):

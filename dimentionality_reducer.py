@@ -23,7 +23,7 @@ class DimensionalityReducer:
         self.autoencoder_model = None
         self.srp_model = None
 
-    def fit_pca(self, embeddings, n_components):
+    def fit_pca(self, embeddings, n_components=0.8):
         """
         Fit PCA model on the embeddings.
 
@@ -35,9 +35,11 @@ class DimensionalityReducer:
             None
         """
         scaler = StandardScaler()
-        pca = PCA(n_components=n_components)
+        pca = PCA(n_components=n_components, svd_solver='full')
         pipeline = Pipeline([('scaler', scaler), ('pca', pca)])
         self.pca_model = pipeline.fit(embeddings)
+        exp_var = np.cumsum(np.array(self.pca_model.named_steps['pca'].explained_variance_ratio_))
+        print(exp_var)
 
     def fit_lsa(self, embeddings, n_components):
         """
@@ -51,11 +53,23 @@ class DimensionalityReducer:
             None
         """
         scaler = StandardScaler()
+        print(n_components)
+
+        # Desired dimensionality of output data. If algorithm=’arpack’, must be strictly less than the number of features. 
+        # If algorithm=’randomized’, must be less than or equal to the number of features. 
+        # The default value is useful for visualisation. For LSA, a value of 100 is recommended.
         lsa = TruncatedSVD(n_components=n_components)
         # pipeline = Pipeline([('scaler', scaler), ('lsa', lsa)])
         self.lsa_model = lsa.fit(embeddings)
         exp_var = np.cumsum(np.array(self.lsa_model.explained_variance_ratio_))
+        
         first_idx = np.where(exp_var>0.8)[0][0]
+
+        print(exp_var)
+        print(self.lsa_model.explained_variance_)
+        print(self.lsa_model.singular_values_)
+        print(first_idx)
+
         n_components = first_idx+1
         lsa = TruncatedSVD(n_components=n_components)
         self.lsa_model = lsa.fit(embeddings)
