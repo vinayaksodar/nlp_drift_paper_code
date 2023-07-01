@@ -1,9 +1,10 @@
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from gensim.models.doc2vec import Doc2Vec, TaggedDocument
-from transformers import BertModel, BertTokenizer, BertForSequenceClassification
+from transformers import BertModel, BertTokenizer, BertForSequenceClassification, BertConfig
 import numpy as np
 import pickle
+import torch
 from scipy.sparse import csr_matrix
 
 from data_handling.text_column_preprocessor import TextPreprocessor
@@ -91,6 +92,38 @@ class SentenceEmbedder:
         doc2vec_vectors = np.array([self.doc2vec_model.infer_vector(text.split()) for text in texts])
         return doc2vec_vectors
 
+    # def generate_bert_vectors(self, texts):
+    #     """
+    #     Generate BERT vectors.
+
+    #     Args:
+    #         texts (pandas.Series): Pandas Series containing input texts.
+
+    #     Returns:
+    #         bert_vectors (tensor): BERT vectors.
+    #     """
+    #     # inputs = self.bert_tokenizer(list(texts), padding=True, truncation=True, return_tensors='pt')
+    #     # outputs = self.bert_model(**inputs,)
+
+    #     # # Access the BERT vectors based on the model's output structure
+    #     # if isinstance(outputs, tuple):
+    #     #     # For models like BERTForSequenceClassification
+    #     #     bert_vectors = outputs[0]
+    #     # else:
+    #     #     # For models like BertModel
+    #     #     bert_vectors = outputs.hidden_states[-1]
+    #     #     # bert_vectors = outputs.pooler_output
+
+    #     bert_vectors = []
+    #     for text in texts:
+    #         inputs = self.bert_tokenizer.encode_plus(text, add_special_tokens=True, return_tensors='pt')
+    #         with torch.no_grad():
+    #             outputs = self.bert_model(**inputs)
+    #         bert_vector = outputs.pooler_output  # Use pooler_output as the representation
+    #         bert_vectors.append(bert_vector)
+
+    #     return bert_vectors
+    
     def generate_bert_vectors(self, texts):
         """
         Generate BERT vectors.
@@ -99,14 +132,53 @@ class SentenceEmbedder:
             texts (pandas.Series): Pandas Series containing input texts.
 
         Returns:
-            bert_vectors (tensor): BERT vectors.
+            bert_vectors (numpy.ndarray): BERT vectors.
         """
-        inputs = self.bert_tokenizer(list(texts), padding=True, truncation=True, return_tensors='pt')
-        outputs = self.bert_model(**inputs)
+        input_ids = []
+        attention_masks = []
 
-        bert_vectors = outputs.last_hidden_state
+        # Tokenize and encode the texts
+        for text in texts:
+            encoded_dict = self.bert_tokenizer.encode_plus(
+                text,
+                add_special_tokens=True,
+                max_length=500,
+                pad_to_max_length=True,
+                truncation=True,
+                return_attention_mask=True,
+                return_tensors='pt'
+            )
+
+            input_ids.append(encoded_dict['input_ids'])
+            attention_masks.append(encoded_dict['attention_mask'])
+
+        # Convert the lists into tensors
+        input_ids = torch.cat(input_ids, dim=0)
+        attention_masks = torch.cat(attention_masks, dim=0)
+
+        # Pass the inputs to the BERT model
+        outputs = self.bert_model(input_ids=input_ids, attention_mask=attention_masks)
+
+        # Extract the last hidden state from the model's output
+        last_hidden_state = outputs.hidden_states[-1]
+        print(last_hidden_state.shape)
+        # Apply mean pooling to get a single vector representation for each sentence
+        # bert_vectors = torch.mean(last_hidden_state, dim=1)
+
+        # Extract the embeddings for the [CLS] token from the model's output
+        cls_embeddings = last_hidden_state[:, 0, :]
+        bert_vectors = cls_embeddings
+        print(bert_vectors.shape)
+
+        # Extract the pooler output from the hidden states
+        # bert_vectors = outputs.pooler_output
+
+        # Convert the tensor to numpy ndarray
+        bert_vectors = bert_vectors.detach().numpy()
+
         return bert_vectors
-    
+
+
     def save_model(self, model, filename):
         """
         Save the embedding model to a file using pickle.
@@ -150,9 +222,14 @@ class SentenceEmbedder:
         # with open(filename, 'rb') as file:
         #     model = pickle.load(file)
         #     self.bert_model=model
-        model = BertForSequenceClassification.from_pretrained(filename)
+
+        config = BertConfig.from_pretrained('/Users/vinayak/Development/nlp_drift_paper_code/saved_models/bert/config.json')
+        config.output_hidden_states = True
+        tokenizer=BertTokenizer.from_pretrained(filename, config=config)
+        model = BertForSequenceClassification.from_pretrained(filename, config=config)
         model.eval()
-        tokenizer=BertTokenizer.from_pretrained(filename)
+        
+        
         self.bert_model = model
         self.bert_tokenizer = tokenizer
 
