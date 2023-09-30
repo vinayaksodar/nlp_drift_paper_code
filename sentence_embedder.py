@@ -5,6 +5,7 @@ from transformers import BertModel, BertTokenizer, BertForSequenceClassification
 import numpy as np
 import pickle
 import torch
+import gc
 from scipy.sparse import csr_matrix
 
 from data_handling.text_column_preprocessor import TextPreprocessor
@@ -124,12 +125,68 @@ class SentenceEmbedder:
 
     #     return bert_vectors
     
-    def generate_bert_vectors(self, texts):
+    # def generate_bert_vectors(self, texts):
+    #     """
+    #     Generate BERT vectors.
+
+    #     Args:
+    #         texts (pandas.Series): Pandas Series containing input texts.
+
+    #     Returns:
+    #         bert_vectors (numpy.ndarray): BERT vectors.
+    #     """
+    #     input_ids = []
+    #     attention_masks = []
+
+    #     # Tokenize and encode the texts
+    #     for text in texts:
+    #         encoded_dict = self.bert_tokenizer.encode_plus(
+    #             text,
+    #             add_special_tokens=True,
+    #             max_length=500,
+    #             pad_to_max_length=True,
+    #             truncation=True,
+    #             return_attention_mask=True,
+    #             return_tensors='pt'
+    #         )
+
+    #         input_ids.append(encoded_dict['input_ids'])
+    #         attention_masks.append(encoded_dict['attention_mask'])
+    #     print('1')
+    #     # Convert the lists into tensors
+    #     input_ids = torch.cat(input_ids, dim=0)
+    #     attention_masks = torch.cat(attention_masks, dim=0)
+    #     print('2')
+    #     # Pass the inputs to the BERT model
+    #     outputs = self.bert_model(input_ids=input_ids, attention_mask=attention_masks)
+    #     print('3')
+    #     # Extract the last hidden state from the model's output
+    #     last_hidden_state = outputs.hidden_states[-1]
+    #     print(last_hidden_state.shape)
+    #     # Apply mean pooling to get a single vector representation for each sentence
+    #     # bert_vectors = torch.mean(last_hidden_state, dim=1)
+
+    #     # Extract the embeddings for the [CLS] token from the model's output
+    #     cls_embeddings = last_hidden_state[:, 0, :]
+    #     bert_vectors = cls_embeddings
+    #     print(bert_vectors.shape)
+
+    #     # Extract the pooler output from the hidden states
+    #     # bert_vectors = outputs.pooler_output
+
+    #     # Convert the tensor to numpy ndarray
+    #     bert_vectors = bert_vectors.detach().numpy()
+
+    #     return bert_vectors
+
+
+    def generate_bert_vectors(self, texts, batch_size=128):
         """
         Generate BERT vectors.
 
         Args:
             texts (pandas.Series): Pandas Series containing input texts.
+            batch_size (int): Batch size for inference.
 
         Returns:
             bert_vectors (numpy.ndarray): BERT vectors.
@@ -151,30 +208,62 @@ class SentenceEmbedder:
 
             input_ids.append(encoded_dict['input_ids'])
             attention_masks.append(encoded_dict['attention_mask'])
-
+        
+        device = torch.device("cuda:0")
         # Convert the lists into tensors
         input_ids = torch.cat(input_ids, dim=0)
         attention_masks = torch.cat(attention_masks, dim=0)
 
-        # Pass the inputs to the BERT model
-        outputs = self.bert_model(input_ids=input_ids, attention_mask=attention_masks)
+        # Move the tensors to the desired device (GPU)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        input_ids = input_ids
+        attention_masks = attention_masks
 
-        # Extract the last hidden state from the model's output
-        last_hidden_state = outputs.hidden_states[-1]
-        print(last_hidden_state.shape)
-        # Apply mean pooling to get a single vector representation for each sentence
-        # bert_vectors = torch.mean(last_hidden_state, dim=1)
+        num_samples = len(input_ids)
+        bert_vectors = []
 
-        # Extract the embeddings for the [CLS] token from the model's output
-        cls_embeddings = last_hidden_state[:, 0, :]
-        bert_vectors = cls_embeddings
-        print(bert_vectors.shape)
+        bert_model=self.bert_model.to(device)
+        # Process the input texts in batches
+        for start in range(0, num_samples, batch_size):
+            end = start + batch_size
 
-        # Extract the pooler output from the hidden states
-        # bert_vectors = outputs.pooler_output
+            # Slice the tensors to form a batch
+            batch_input_ids = input_ids[start:end].to(device)
+            batch_attention_masks = attention_masks[start:end].to(device)
+            
+            with torch.no_grad():
+              # Pass the batch inputs to the BERT model
+              outputs = bert_model(input_ids=batch_input_ids, attention_mask=batch_attention_masks)
 
-        # Convert the tensor to numpy ndarray
-        bert_vectors = bert_vectors.detach().numpy()
+            # Extract the last hidden state from the model's output
+            last_hidden_state = outputs.hidden_states[-1]
+
+            # Extract the embeddings for the [CLS] token from the model's output
+            cls_embeddings = last_hidden_state[:, 0, :]
+
+            # Move the tensors back to CPU and convert to numpy
+            cls_embeddings = cls_embeddings.cpu().detach().numpy()
+
+            # Append the batch embeddings to the list
+            bert_vectors.append(cls_embeddings)
+
+            print('1')
+
+            # Release memory
+            del outputs, last_hidden_state, cls_embeddings
+            # torch.cuda.empty_cache()
+            gc.collect()
+
+        # # Concatenate the batch embeddings along the batch dimension
+        # bert_vectors = torch.cat(bert_vectors, dim=0)
+
+        # # Convert the tensor to a numpy ndarray
+        # bert_vectors = bert_vectors.detach().numpy()
+
+        # Concatenate the batch embeddings along the batch dimension
+        # bert_vectors = torch.cat(bert_vectors, dim=0).cpu().numpy()
+        # Concatenate the batch embeddings along the batch dimension
+        bert_vectors = np.concatenate(bert_vectors, axis=0)
 
         return bert_vectors
 
@@ -223,7 +312,7 @@ class SentenceEmbedder:
         #     model = pickle.load(file)
         #     self.bert_model=model
 
-        config = BertConfig.from_pretrained('/Users/vinayak/Development/nlp_drift_paper_code/saved_models/bert/config.json')
+        config = BertConfig.from_pretrained(filename + '/config.json')
         config.output_hidden_states = True
         tokenizer=BertTokenizer.from_pretrained(filename, config=config)
         model = BertForSequenceClassification.from_pretrained(filename, config=config)
